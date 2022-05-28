@@ -153,7 +153,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.Camera.Clear()
 
 	g.Camera.RenderNodes(g.GameScene, g.GameScene.Root)
-
 	screen.DrawImage(g.Camera.ColorTexture(), nil)
 
 	op := &ebiten.DrawImageOptions{}
