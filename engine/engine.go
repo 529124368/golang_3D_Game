@@ -3,7 +3,6 @@ package engine
 import (
 	"bytes"
 	"embed"
-	_ "embed"
 	"errors"
 	"fmt"
 	"image"
