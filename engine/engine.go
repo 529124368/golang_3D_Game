@@ -10,11 +10,15 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
+	"math/rand"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio"
 	"github.com/hajimehoshi/ebiten/v2/audio/mp3"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/kvartborg/vector"
 	"github.com/solarlune/tetra3d"
@@ -27,9 +31,17 @@ const ScreenWidth = 796
 const ScreenHeight = 448
 
 type Enemy struct {
-	Name string
-	HP   int
+	Name   string
+	HP     int
+	shoted bool
 }
+
+func (e *Enemy) DelHP(img *ebiten.Image) {
+	if e.HP > 0 {
+		e.HP -= 20
+	}
+}
+
 type Game struct {
 	GameScene                *tetra3d.Scene
 	Camera                   *tetra3d.Camera
@@ -42,11 +54,28 @@ type Game struct {
 	Library                  *tetra3d.Library
 	Gun, fouce, fire, HP     *ebiten.Image
 	Audio                    *audio.Player
-	IsFire, ISGetEnmey       bool
+	IsFire                   bool
 	firePos                  vector.Vector
 	enemyList                []*Enemy
 }
 
+func (g *Game) AddDelEm() {
+	for _, v := range g.enemyList {
+		if !g.GameScene.Root.Get(v.Name).Visible() {
+			rand.Seed(time.Now().UnixNano())
+			randomNum := rand.Intn(3)
+			randomNum1 := rand.Intn(10)
+			g.GameScene.Root.Get(v.Name).ResetLocalTransform()
+			if v.Name == "en1" {
+				g.GameScene.Root.Get(v.Name).SetLocalPosition(vector.Vector{21 + float64(randomNum1), 1, -9 - float64(randomNum)})
+			} else {
+				g.GameScene.Root.Get(v.Name).SetLocalPosition(vector.Vector{20 + float64(randomNum1), 1, 2 - float64(randomNum)})
+			}
+
+			g.GameScene.Root.Get(v.Name).SetVisible(true, false)
+		}
+	}
+}
 func NewGame() *Game {
 
 	g := &Game{PrevMousePosition: vector.Vector{}, firePos: vector.Vector{338, 184}}
@@ -79,8 +108,8 @@ func NewGame() *Game {
 	p1.SetName("en2")
 	p1.SetLocalPosition(vector.Vector{20, 1, 2})
 	//敌人信息入库
-	g.enemyList = append(g.enemyList, &Enemy{Name: "en1", HP: 100})
-	g.enemyList = append(g.enemyList, &Enemy{Name: "en2", HP: 100})
+	g.enemyList = append(g.enemyList, &Enemy{Name: "en1", HP: 48})
+	g.enemyList = append(g.enemyList, &Enemy{Name: "en2", HP: 48})
 	//加载模型
 	d, err := tetra3d.LoadGLTFData(gltfData, nil)
 	g.Library = d
@@ -139,23 +168,22 @@ func (g *Game) Update() error {
 	}
 	//开火
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		hasGet := false
 		for _, v := range g.enemyList {
-			s := g.GetScreenPos(v.Name)
-			if s[0] >= 0 && s[0] <= ScreenWidth && s[1] >= 0 && s[1] <= ScreenHeight {
-				if s.Sub(g.firePos).Magnitude() < 50 {
-					hasGet = true
-					fmt.Println("击中" + v.Name)
-				} else {
-					fmt.Println("没击中")
-					hasGet = false
+			if g.GameScene.Root.Get(v.Name).Visible() {
+				s := g.GetScreenPos(v.Name)
+				if s[0] >= 0 && s[0] <= ScreenWidth && s[1] >= 0 && s[1] <= ScreenHeight {
+					if s.Sub(g.firePos).Magnitude() < 50 {
+						fmt.Println("击中" + v.Name)
+						v.DelHP(g.HP)
+						v.shoted = true
+					} else {
+						fmt.Println("没击中")
+						v.shoted = false
+					}
 				}
+			} else {
+				fmt.Println("没击中")
 			}
-		}
-		if hasGet {
-			g.ISGetEnmey = true
-		} else {
-			g.ISGetEnmey = false
 		}
 
 		if !g.IsFire {
@@ -200,6 +228,7 @@ func (g *Game) Update() error {
 	}
 
 	g.PrevMousePosition = mv.Clone()
+
 	return err
 }
 
@@ -232,12 +261,28 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		g.RenderImg(screen, g.fire, 330, 184, 1, 1)
 
 	}
+
 	//显示敌人HP
-	if g.ISGetEnmey {
-		g.RenderImg(screen, g.HP, ScreenWidth/2-50, 50, 2, 2)
+	for _, v := range g.enemyList {
+		if v.HP <= 0 {
+			v.HP = 48
+			v.shoted = false
+			g.GameScene.Root.Get(v.Name).SetVisible(false, false)
+			go func() {
+				time.Sleep(time.Second * 2)
+				g.AddDelEm()
+			}()
+		}
+		if v.shoted {
+			op := &ebiten.DrawImageOptions{}
+			op.Filter = ebiten.FilterLinear
+			op.GeoM.Scale(2, 2)
+			op.GeoM.Translate(ScreenWidth/2-50, 50)
+			screen.DrawImage(g.HP.SubImage(image.Rectangle{image.Point{0, 0}, image.Point{v.HP, 4}}).(*ebiten.Image), op)
+		}
 	}
 
-	//ebitenutil.DebugPrint(screen, strconv.FormatFloat(g.Camera.LocalPosition()[0], 'f', 0, 64)+"\n"+strconv.FormatFloat(g.Camera.LocalPosition()[1], 'f', 0, 64)+"\n"+strconv.FormatFloat(g.Camera.LocalPosition()[2], 'f', 0, 64))
+	ebitenutil.DebugPrint(screen, strconv.FormatFloat(g.Camera.LocalPosition()[0], 'f', 0, 64)+"\n"+strconv.FormatFloat(g.Camera.LocalPosition()[1], 'f', 0, 64)+"\n"+strconv.FormatFloat(g.Camera.LocalPosition()[2], 'f', 0, 64))
 
 }
 
