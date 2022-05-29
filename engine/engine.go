@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"embed"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -11,7 +12,6 @@ import (
 	_ "image/png"
 	"math"
 	"math/rand"
-	"os"
 	"strconv"
 	"time"
 
@@ -24,8 +24,8 @@ import (
 	"github.com/solarlune/tetra3d"
 )
 
-//go:embed asset/map01.gltf
-var gltfData []byte
+//go:embed asset
+var Asset embed.FS
 
 const ScreenWidth = 796
 const ScreenHeight = 448
@@ -76,25 +76,34 @@ func (g *Game) AddDelEm() {
 		}
 	}
 }
+
+func GetAssetBytes(name string) []byte {
+	b, err := Asset.ReadFile(name)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
 func NewGame() *Game {
 
 	g := &Game{PrevMousePosition: vector.Vector{}, firePos: vector.Vector{338, 184}}
 	//加载图片
-	m, _ := os.ReadFile("engine/asset/gun2.png")
+	m := GetAssetBytes("asset/gun2.png")
 	i, _, _ := image.Decode(bytes.NewReader(m))
 	g.Gun = ebiten.NewImageFromImage(i)
-	m, _ = os.ReadFile("engine/asset/crosshair.png")
+	m = GetAssetBytes("asset/crosshair.png")
 	i, _, _ = image.Decode(bytes.NewReader(m))
 	g.fouce = ebiten.NewImageFromImage(i)
-	m, _ = os.ReadFile("engine/asset/fire.png")
+	m = GetAssetBytes("asset/fire.png")
 	i, _, _ = image.Decode(bytes.NewReader(m))
 	g.fire = ebiten.NewImageFromImage(i)
 	//HP
-	m, _ = os.ReadFile("engine/asset/hp_bar.png")
+	m = GetAssetBytes("asset/hp_bar.png")
 	i, _, _ = image.Decode(bytes.NewReader(m))
 	g.HP = ebiten.NewImageFromImage(i)
 	//敌人
-	m, _ = os.ReadFile("engine/asset/enmey.png")
+	m = GetAssetBytes("asset/enmey.png")
 	i, _, _ = image.Decode(bytes.NewReader(m))
 	enemy := ebiten.NewImageFromImage(i)
 	cubeMesh := tetra3d.NewPlane()
@@ -111,11 +120,11 @@ func NewGame() *Game {
 	g.enemyList = append(g.enemyList, &Enemy{Name: "en1", HP: 48})
 	g.enemyList = append(g.enemyList, &Enemy{Name: "en2", HP: 48})
 	//加载模型
-	d, err := tetra3d.LoadGLTFData(gltfData, nil)
+	d, err := tetra3d.LoadGLTFData(GetAssetBytes("asset/map01.gltf"), nil)
 	g.Library = d
 	g.GameScene = g.Library.ExportedScene
 	//声音
-	bgm, _ := os.ReadFile("engine/asset/gun.mp3")
+	bgm := GetAssetBytes("asset/gun.mp3")
 	ss, _ := mp3.DecodeWithSampleRate(44100, bytes.NewReader(bgm))
 	cont := audio.NewContext(44100)
 	g.Audio, _ = cont.NewPlayer(ss)
